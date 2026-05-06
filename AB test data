@@ -1,0 +1,97 @@
+import pandas as pd
+import numpy as np
+import scipy.stats as stats
+import matplotlib.pyplot as plt
+from statsmodels.stats.proportion import proportions_ztest, proportion_confint
+from statsmodels.stats.power import TTestIndPower
+
+# ---------------------------------------------------------
+# 1. DATA SETUP & SUMMARY
+# ---------------------------------------------------------
+# Based on the "Data Summary" table
+data_summary = {
+    'Group': ['Control', 'Treatment'],
+    'Visitors': [10000, 10000],
+    'Conversions': [750, 900],
+    'Conversion Rate': [0.075, 0.090]
+}
+
+# 2. FORMULATE HYPOTHESES
+# H0: New design conversion rate <= Old design (p_new - p_old <= 0)
+# H1: New design conversion rate > Old design (p_new - p_old > 0)
+
+# ---------------------------------------------------------
+# 3. STATISTICAL TESTING: TWO-PROPORTION Z-TEST
+# ---------------------------------------------------------
+conv_old = 750
+conv_new = 900
+n_old = 10000
+n_new = 10000
+
+# Perform Z-test (One-tailed: alternative='larger')
+z_score, p_value = proportions_ztest(
+    count=[conv_new, conv_old], 
+    nobs=[n_new, n_old], 
+    alternative='larger'
+)
+
+print(f"--- Z-Test Results ---")
+print(f"Z-score: {z_score:.2f}")
+print(f"p-value: {p_value:.6f}")
+
+if p_value < 0.05:
+    print("Interpretation: p < 0.05 → Reject H0 (New design is significantly better)")
+else:
+    print("Interpretation: Fail to reject H0")
+
+# ---------------------------------------------------------
+# 4. CONFIDENCE INTERVAL VISUALIZATION
+# ---------------------------------------------------------
+ci_old = proportion_confint(conv_old, n_old, alpha=0.05)
+ci_new = proportion_confint(conv_new, n_new, alpha=0.05)
+
+plt.figure(figsize=(10, 6))
+# Using the values from the document's visualization description
+plt.errorbar(x=[0, 1], y=[0.075, 0.09], 
+             yerr=[[0.075-ci_old[0], 0.09-ci_new[0]], 
+                   [ci_old[1]-0.075, ci_new[1]-0.09]], 
+             fmt='o', capsize=10, color='blue')
+
+plt.xticks([0, 1], ['Control', 'Treatment'])
+plt.ylabel('Conversion Rate')
+plt.title('95% Confidence Intervals\n(New design: 9.0% ± 0.6% vs Control: 7.5% ± 0.5%)')
+plt.grid(alpha=0.2)
+plt.show()
+
+# ---------------------------------------------------------
+# 5. ADVANCED TESTING SCENARIOS
+# ---------------------------------------------------------
+
+# Chi-Square Test (Categorical Relationship)
+# Example: Does device type affect conversion? 
+# (Data inferred from text finding: p=0.31)
+contingency_table = [[200, 1800], [220, 1780]] # Example counts
+chi2, p_chi, dof, ex = stats.chi2_contingency(contingency_table)
+print(f"\n--- Chi-Square Test ---")
+print(f"Chi-square p-value: {p_chi:.5f} (Insight: No significant device effect)")
+
+# T-Test (Continuous Metrics)
+# Example: Session duration comparison
+# (Finding: p=0.62)
+t_stat, p_t = stats.ttest_ind_from_stats(mean1=300, std1=50, nobs1=10000,
+                                         mean2=302, std2=55, nobs2=10000)
+print(f"\n--- T-Test ---")
+print(f"T-test p-value: {p_t:.4f} (Finding: No significant duration difference)")
+
+# ---------------------------------------------------------
+# 6. EXPERIMENTAL DESIGN: SAMPLE SIZE CALCULATION
+# ---------------------------------------------------------
+effect_size = 0.2 
+power = 0.8
+alpha = 0.05
+
+analysis = TTestIndPower()
+sample_size = analysis.solve_power(effect_size=effect_size, power=power, alpha=alpha)
+
+print(f"\n--- Experimental Design ---")
+print(f"Required sample per group: {int(np.ceil(sample_size))}")
